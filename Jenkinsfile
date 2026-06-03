@@ -165,22 +165,28 @@ pipeline {
             }
         }
 
-        stage('Generate Allure Report') {
+        stage('Check Generated Reports') {
+            steps {
+                sh '''
+                    echo "Generated files under target:"
+                    find target -maxdepth 5 -type f | sort
+                '''
+            }
+        }
+
+        stage('Publish Allure Report') {
             steps {
                 script {
-                    // 1. Generate Allure HTML report using Maven
-                    sh 'mvn -B allure:report || true'
-
-                    // 2. Publish Allure report using Jenkins Allure Plugin
-                    if (fileExists('target/allure-results')) {
+                    if (fileExists("${env.ALLURE_RESULT_DIR}")) {
                         allure(
                                 commandline: 'Allure-2',
                                 includeProperties: false,
                                 jdk: '',
-                                results: [[path: 'target/allure-results']]
+                                reportBuildPolicy: 'ALWAYS',
+                                results: [[path: "${env.ALLURE_RESULT_DIR}"]]
                         )
                     } else {
-                        echo 'No Allure results found. Skipping Jenkins Allure report.'
+                        echo "No Allure results found in ${env.ALLURE_RESULT_DIR}. Skipping Allure report publishing."
                     }
                 }
             }
@@ -205,23 +211,13 @@ pipeline {
                         reportName           : 'Cucumber HTML Report'
                 ])
 
-                publishHTML(target: [
-                        allowMissing         : true,
-                        alwaysLinkToLastBuild: true,
-                        keepAll              : true,
-                        reportDir            : 'target/site/allure-maven-plugin',
-                        reportFiles          : 'index.html',
-                        reportName           : 'Allure HTML Report'
-                ])
-
                 archiveArtifacts artifacts: '''
-            target/cucumber-reports/**,
-            target/allure-results/**,
-            target/site/allure-maven-plugin/**,
-            target/screenshots/**,
-            target/traces/**,
-            target/dependency-analysis.txt
-        '''.stripIndent().trim(), allowEmptyArchive: true, fingerprint: true
+                    target/cucumber-reports/**,
+                    target/allure-results/**,
+                    target/screenshots/**,
+                    target/traces/**,
+                    target/dependency-analysis.txt
+                '''.stripIndent().trim(), allowEmptyArchive: true, fingerprint: true
             }
         }
     }
